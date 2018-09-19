@@ -113,24 +113,6 @@ public class PushServer {
         });
     }
 
-    public void pushMsgNeedAck(final String targetName, final String msg, Ack ack) {
-        threadHanlder.post(() -> {
-            if (server == null) {
-                return;
-            }
-            server.pushMsgToTargetNeedAck(targetName, msg, ack);
-        });
-    }
-
-    public void pushMsgNeedAck(final String targetName, String uniq, final String msg, Ack ack) {
-        threadHanlder.post(() -> {
-            if (server == null) {
-                return;
-            }
-            server.pushMsgToTargetNeedAck(targetName, msg, uniq, ack);
-        });
-    }
-
     /**
      * 启动服务器
      *

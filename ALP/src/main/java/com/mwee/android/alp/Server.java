@@ -5,7 +5,6 @@ import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
-import android.util.Pair;
 
 import com.google.gson.Gson;
 
@@ -17,11 +16,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import timber.log.Timber;
 
@@ -48,65 +44,6 @@ class Server {
      */
     private IMsgReceiver receiver;
     private Thread handlerThread = null;
-
-    /**
-     * 回执缓存的最大数
-     */
-    private static final int ACK_MAX_SIZE = 40;
-    /**
-     * 消息id和回执回调的map
-     */
-    private LinkedHashMap<String, Pair<Long, Ack>> ackMap = new LinkedHashMap<String, Pair<Long, Ack>>(0, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Entry<String, Pair<Long, Ack>> eldest) {
-            // 超过设置的缓存 ACK 最大长度，移除最旧的
-            if (size() > ACK_MAX_SIZE) {
-                String uniq = eldest.getKey();
-                Ack ack = eldest.getValue().second;
-                Timber.i(("ALP" + "超出 ACK 缓存的最大长度，消息[" + uniq + "]不再等待回执"));
-                if (ack != null) {
-                    ack.callback(uniq, AckStatus.UnKnow);
-                }
-                return true;
-            }
-            return false;
-        }
-    };
-
-    /**
-     * 消息回执的轮询
-     */
-    private Thread ackThread = new Thread("AlpAckLoop") {
-        @Override
-        public void run() {
-            super.run();
-            Timber.i("Ack loop thread check finish: " + checkFinish());
-            while (!checkFinish()) {
-                try {
-                    Thread.sleep(5 * 1000);
-                } catch (InterruptedException e) {
-                    Timber.e(e);
-                }
-                if (ackMap.size() == 0) {
-                    continue;
-                }
-                synchronized (ackMap) {
-                    Iterator<String> it = ackMap.keySet().iterator();
-                    while (it.hasNext()) {
-                        String uniq = it.next();
-                        long timestamp = ackMap.get(uniq).first;
-                        Ack ack = ackMap.get(uniq).second;
-                        if (SystemClock.elapsedRealtime() - timestamp < ack.timeout()) {
-                            continue;
-                        }
-                        Timber.i("loop for ack, message [" + uniq + "] timeout");
-                        ack.callback(uniq, AckStatus.Timeout);
-                        it.remove();
-                    }
-                }
-            }
-        }
-    };
 
     protected Server() {
         Timber.e("server created " + Thread.currentThread().getName());
@@ -178,8 +115,6 @@ class Server {
                 }
             };
             handlerThread.start();
-
-            ackThread.start();
         }
     }
 
@@ -309,14 +244,8 @@ class Server {
                                 "Key Client: " + new Gson().toJson(keyClient.keySet()));
                         break;
                     case Configure.KEY_ACK:
-                        // 回执消息
-                        synchronized (ackMap) {
-                            Timber.i("Receive ack for message [" + msgValue + "]");
-                            if (ackMap.containsKey(msgValue)) {
-                                ackMap.get(msgValue).second.callback(msgValue, AckStatus.Success);
-                            }
-                            ackMap.remove(msgValue);
-                        }
+                        // 回执消息，服务端暂不实现
+
                         break;
                     default:
                         break;
@@ -400,38 +329,6 @@ class Server {
         }
     }
 
-    public void pushMsgToTargetNeedAck(String targetName, String msg, Ack ack) {
-        pushMsgToTargetNeedAck(targetName, msg, UUID.randomUUID().toString(), ack);
-    }
-
-    /**
-     * 推送业务消息给指定的链路
-     *
-     * @param targetName 指定链路
-     * @param msg        消息体
-     * @param uniq       消息唯一标识
-     * @param ack        回执回调
-     */
-    public void pushMsgToTargetNeedAck(String targetName, String msg, String uniq, Ack ack) {
-        ClientHandler temp = keyClient.get(targetName);
-        if (temp != null) {
-            if (ack != null) {
-                synchronized (ackMap) {
-                    ackMap.put(uniq, new Pair<>(SystemClock.elapsedRealtime(), ack));
-                }
-            }
-            String finalMsg = Configure.MSG_TYPE_BIZ_NEED_ACK + Configure.SYMBOL_SPLIT + uniq + Configure.SYMBOL_SPLIT + msg;
-            temp.pushMsg(finalMsg);
-        } else {
-            Log.d("ALP", "消息 [" + uniq + " ---- " + msg + "]取消推送, 目标客户端 [" + targetName + "] 未注册.\n" +
-                    "Client List: " + clientList + "\n" +
-                    "Key Client: " + new Gson().toJson(keyClient.keySet()));
-            if (ack != null) {
-                ack.callback(uniq, AckStatus.Disconnected);
-            }
-            checkConnectionRegister();
-        }
-    }
 
     private synchronized boolean checkFinish() {
         return callFinish;

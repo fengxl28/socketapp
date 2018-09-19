@@ -415,7 +415,7 @@ public class PushClient {
     /**
      * 断开本地的Socket连接
      */
-    private synchronized void disConnect() {
+    public synchronized void disConnect() {
         if (client != null) {
             client.callFinish();
         }

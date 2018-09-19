@@ -1,34 +1,32 @@
 package com.mwee.android.alp;
 
 
-import android.os.SystemClock;
 import android.text.TextUtils;
-import android.util.Pair;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.LinkedHashMap;
 import java.util.UUID;
 
+import timber.log.Timber;
+
 /**
- * 客户端
- * Created by virgil on 2016/12/11.
+ * @Description: 客户端
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 class Client {
     private static final Object lock = new Object();
     public boolean isDisconnected = false;
-    /**
-     * 客户端持有的Socket
-     */
     private Socket socket = null;
+    private InputStream in;
+    private OutputStream out;
+    private AckManage ackManage;
     /**
      * 手动终止
      */
     private boolean callFinish = false;
-    private InputStream in;
-    private OutputStream out;
     /**
      * 客户端的监听
      */
@@ -38,63 +36,9 @@ class Client {
      */
     private String name;
 
-    /**
-     * 回执缓存的最大数
-     */
-    private static final int ACK_MAX_SIZE = 40;
-    /**
-     * 消息id和回执回调的map
-     */
-    private LinkedHashMap<String, Pair<Long, Ack>> ackMap = new LinkedHashMap<String, Pair<Long, Ack>>(0, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Entry<String, Pair<Long, Ack>> eldest) {
-            // 超过设置的缓存 ACK 最大长度，移除最旧的
-            if (size() > ACK_MAX_SIZE) {
-                String uniq = eldest.getKey();
-                Ack ack = eldest.getValue().second;
-                AlpLog.i("超出 ACK 缓存的最大长度，消息[" + uniq + "]不再等待回执");
-                if (ack != null) {
-                    ack.callback(uniq, AckStatus.UnKnow);
-                }
-                return true;
-            }
-            return false;
-        }
-    };
-    /**
-     * 消息回执的轮询
-     */
-    private Thread ackThread = new Thread("AlpAckLoop") {
-        @Override
-        public void run() {
-            super.run();
-            while (!isFinish()) {
-                try {
-                    Thread.sleep(5 * 1000);
-                } catch (InterruptedException e) {
-                    AlpLog.e(e);
-                }
-                if (ackMap.size() == 0) {
-                    continue;
-                }
-                synchronized (ackMap) {
-                    for (String uniq : ackMap.keySet()) {
-                        long timestamp = ackMap.get(uniq).first;
-                        Ack ack = ackMap.get(uniq).second;
-                        if (SystemClock.elapsedRealtime() - timestamp < ack.timeout()) {
-                            continue;
-                        }
-                        AlpLog.i("loop for ack, message [" + uniq + "] timeout");
-                        ack.callback(uniq, AckStatus.Timeout);
-                        ackMap.remove(uniq);
-                    }
-                }
-            }
-        }
-    };
 
     protected Client() {
-        ackThread.start();
+        ackManage = new AckManage();
     }
 
     /**
@@ -109,7 +53,7 @@ class Client {
         this.receiver = receiver;
         socket = new Socket();
         try {
-            AlpLog.i("Client startClient()  " + address + ":" + port);
+            Timber.i("Client startClient()  " + address + ":" + port);
 
             socket.connect(new InetSocketAddress(address, port), 3000);
             socket.setKeepAlive(true);
@@ -122,7 +66,7 @@ class Client {
             pushMsgToServer(buildHeartBeating());
             while (!callFinish) {
                 if (in == null) {
-                    AlpLog.i("Client " + getName() + " 输入流已为null" + Thread.currentThread().getName());
+                    Timber.i("Client " + getName() + " 输入流已为null" + Thread.currentThread().getName());
                     break;
                 }
                 if (socket.isInputShutdown() || socket.isOutputShutdown() || socket.isClosed() || !socket.isConnected()) {
@@ -130,18 +74,18 @@ class Client {
                 }
                 String clientMsg = Util.socketReader(in, header);
                 if (TextUtils.isEmpty(clientMsg)) {
-                    AlpLog.i("Client " + getName() + " 链路已断开_" + Thread.currentThread().getName());
+                    Timber.i("Client " + getName() + " 链路已断开_" + Thread.currentThread().getName());
                     break;
                 }
 
-                AlpLog.i("Client " + getName() + " receive:" + clientMsg);
+                Timber.i("Client " + getName() + " receive:" + clientMsg);
                 int indexMsgType = clientMsg.indexOf(Configure.SYMBOL_SPLIT);
                 String msgType = clientMsg.substring(0, indexMsgType);
                 String value = clientMsg.substring(indexMsgType + Configure.SYMBOL_SPLIT.length());
                 processMsg(msgType, value);
             }
         } catch (Throwable e) {
-            AlpLog.e(e);
+            Timber.e(e);
         } finally {
             close();
 
@@ -167,7 +111,7 @@ class Client {
                 socket.close();
             }
         } catch (Exception e) {
-            AlpLog.e(e);
+            Timber.e(e);
         }
         in = null;
         out = null;
@@ -197,19 +141,11 @@ class Client {
                     case Configure.KEY_REGIST:
                         break;
                     case Configure.KEY_ACK:
-                        // 回执消息
-                        synchronized (ackMap) {
-                            AlpLog.i("Receive ack for message [" + msgValue + "]");
-                            if (ackMap.containsKey(msgValue)) {
-                                ackMap.get(msgValue).second.callback(msgValue, AckStatus.Success);
-                            }
-                            ackMap.remove(msgValue);
-                        }
+                        ackManage.removeAck(msgValue);
                         break;
-                    case Configure.KEY_UNREGISTERED: {
+                    case Configure.KEY_UNREGISTERED:
                         pushMsgToServer(Configure.MSG_TYPE_INNER + Configure.SYMBOL_SPLIT + Configure.KEY_REGIST + Configure.SYMBOL_SPLIT + name);
-                    }
-                    break;
+                        break;
                     default:
                         break;
                 }
@@ -262,11 +198,7 @@ class Client {
      * @return
      */
     public boolean pushBizToServer(String uniq, String msg, Ack ack) {
-        if (ack != null) {
-            synchronized (ackMap) {
-                ackMap.put(uniq, new Pair<>(SystemClock.elapsedRealtime(), ack));
-            }
-        }
+        ackManage.addAck(uniq, ack);
         return pushMsgToServer(Configure.MSG_TYPE_BIZ_NEED_ACK + Configure.SYMBOL_SPLIT + uniq + Configure.SYMBOL_SPLIT + msg);
     }
 
@@ -278,7 +210,7 @@ class Client {
     public boolean pushMsgToServer(String msg) {
         try {
             if (isFinish()) {
-                AlpLog.i("Client is finished " + Thread.currentThread().getName());
+                Timber.i("Client is finished " + Thread.currentThread().getName());
                 return false;
             }
             if (out != null) {
@@ -289,39 +221,19 @@ class Client {
                     out.write(infoByte);
                     out.flush();
                 }
-                AlpLog.i("Client pushMsgToServer [" + msg + "]_" + Thread.currentThread().getName());
+                Timber.i("Client pushMsgToServer [" + msg + "]_" + Thread.currentThread().getName());
 
                 return true;
             } else {
-                AlpLog.i("Client out stream is null" + Thread.currentThread().getName());
+                Timber.i("Client out stream is null" + Thread.currentThread().getName());
                 return false;
             }
         } catch (Exception e) {
-            AlpLog.e(e);
+            Timber.e(e);
         }
         return false;
     }
 
-    /**
-     * 检测链路是否连接正常
-     *
-     * @return boolean | true： 链路正常；false：链路已断开
-     */
-    private boolean checkAlive() {
-        synchronized (lock) {
-            try {
-
-
-                //实际测试下来，在连接数很大的情况下，tcp的接收端并不会忽略这个消息
-//                socket.sendUrgentData(1);
-
-            } catch (Exception ex) {
-                AlpLog.e(ex);
-                return false;
-            }
-        }
-        return true;
-    }
 
     /**
      * 发送心跳报文
@@ -331,17 +243,13 @@ class Client {
     }
 
     /**
-     * 一次心跳的结果，检测：socket的状态、连接状态、是否关闭，并调用{@link #checkAlive()}来检测链路
-     * 最后，发送心跳的报文{@link #sendHeartBeating()}
+     * 一次心跳的结果，检测：socket的状态、连接状态、是否关闭，
      *
      * @return boolean
      */
     protected boolean heartBeating() {
         if (!(socket != null && !socket.isClosed() && socket.isConnected())) {
-            AlpLog.i("Client 链路异常");
-            return false;
-        }
-        if (!checkAlive()) {
+            Timber.i("Client 链路异常");
             return false;
         }
         return sendHeartBeating();
@@ -352,6 +260,7 @@ class Client {
      */
     public void callFinish() {
         callFinish = true;
+        ackManage.setFinish(callFinish);
         close();
     }
 

@@ -11,10 +11,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-/**
- * Created by virgil on 2016/12/12.
- */
+import timber.log.Timber;
 
+/**
+ * @Description: 工具包
+ * @author: Xiaolong
+ * @Date: 2018/9/19
+ */
 class Util {
     /**
      * 权限时是否被授权
@@ -23,7 +26,6 @@ class Util {
      * @return
      */
     private static boolean isPermissionGranted(Context context, String permission) {
-//       android.Manifest.permission.ACCESS_NETWORK_STATE
         int resultOfCheck = context.checkCallingOrSelfPermission(permission);
         return resultOfCheck == PackageManager.PERMISSION_GRANTED;
     }
@@ -45,13 +47,6 @@ class Util {
             }
         }
         return flag;
-    }
-
-    public static char[] writeInt(int info, int length) {
-        String result = info + "";
-        char[] bytes = new char[length];
-        result.getChars(0, result.length(), bytes, length - result.length());
-        return bytes;
     }
 
     public static byte[] integerToBytes(int x, int len) {
@@ -79,13 +74,13 @@ class Util {
         String originStr = getStringByByte(header);
         int tempHead = in.read(header, 0, 4);
         if (tempHead < 0) {
-            AlpLog.i("tempHead=" + tempHead);
+            Timber.i("tempHead=" + tempHead);
             return null;
         }
         int totalLength = bytesToInteger(header);
         if (totalLength < 0) {
 
-            AlpLog.i("totalLength=" + totalLength + ";now=" + getStringByByte(header) + ";origin=" + originStr);
+            Timber.i("totalLength=" + totalLength + ";now=" + getStringByByte(header) + ";origin=" + originStr);
             return null;
         }
         if (totalLength >= 10000000) {

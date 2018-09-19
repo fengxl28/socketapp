@@ -7,10 +7,12 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 
+import timber.log.Timber;
+
 /**
- * 推送服务器的管理
- * Created by virgil on 2016/12/11.
- * @author virgil
+ * @Description: 服务端管理
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 @SuppressWarnings("unused")
 public class PushServer {
@@ -137,7 +139,7 @@ public class PushServer {
      */
     public void startServer(final int port, IMsgReceiver userReceiver) {
         if (port < 3000) {
-            AlpLog.e("PushServer startServer() 非法端口 " + port);
+            Timber.e("PushServer startServer() 非法端口 " + port);
             return;
         }
         if (server != null) {
@@ -155,9 +157,7 @@ public class PushServer {
 
     public void finishServer() {
         synchronized (PushServer.class) {
-            if (AlpLog.showLog) {
-                AlpLog.i("destroy");
-            }
+            Timber.i("destroy");
             if (server != null) {
                 server.finish();
                 server = null;
@@ -168,7 +168,7 @@ public class PushServer {
                 }
                 workingThread = null;
             } catch (Exception e) {
-                 AlpLog.e(e);
+                Timber.e(e);
             }
             if (threadHanlder != null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {

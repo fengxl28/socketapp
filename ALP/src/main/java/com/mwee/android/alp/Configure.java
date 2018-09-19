@@ -1,7 +1,8 @@
 package com.mwee.android.alp;
-
 /**
- * Created by virgil on 2016/12/11.
+ * @Description:
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 class Configure {
     /*

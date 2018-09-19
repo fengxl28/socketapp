@@ -1,26 +1,18 @@
 package com.mwee.android.alp;
 
 
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static com.mwee.android.alp.AckStatus.Disconnected;
-import static com.mwee.android.alp.AckStatus.Success;
-import static com.mwee.android.alp.AckStatus.Timeout;
-import static com.mwee.android.alp.AckStatus.UnKnow;
-
 /**
- * @ClassName: AckStatus
- * @Description:
- * @author: SugarT
- * @date: 2018/6/19 下午3:49
+ * @Description: 回执状态
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.FIELD, ElementType.PARAMETER})
-@IntDef(value = {UnKnow, Success, Disconnected, Timeout})
 public @interface AckStatus {
 
     /**

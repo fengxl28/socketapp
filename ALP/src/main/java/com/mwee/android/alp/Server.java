@@ -23,9 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import timber.log.Timber;
+
 /**
- * 推送服务器
- * Created by virgil on 2016/12/11.
+ * @Description: 服务端
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 class Server {
     /**
@@ -60,7 +63,7 @@ class Server {
             if (size() > ACK_MAX_SIZE) {
                 String uniq = eldest.getKey();
                 Ack ack = eldest.getValue().second;
-                AlpLog.i(("ALP" + "超出 ACK 缓存的最大长度，消息[" + uniq + "]不再等待回执"));
+                Timber.i(("ALP" + "超出 ACK 缓存的最大长度，消息[" + uniq + "]不再等待回执"));
                 if (ack != null) {
                     ack.callback(uniq, AckStatus.UnKnow);
                 }
@@ -77,12 +80,12 @@ class Server {
         @Override
         public void run() {
             super.run();
-            AlpLog.i("Ack loop thread check finish: " + checkFinish());
+            Timber.i("Ack loop thread check finish: " + checkFinish());
             while (!checkFinish()) {
                 try {
                     Thread.sleep(5 * 1000);
                 } catch (InterruptedException e) {
-                    AlpLog.e(e);
+                    Timber.e(e);
                 }
                 if (ackMap.size() == 0) {
                     continue;
@@ -96,7 +99,7 @@ class Server {
                         if (SystemClock.elapsedRealtime() - timestamp < ack.timeout()) {
                             continue;
                         }
-                        AlpLog.i("loop for ack, message [" + uniq + "] timeout");
+                        Timber.i("loop for ack, message [" + uniq + "] timeout");
                         ack.callback(uniq, AckStatus.Timeout);
                         it.remove();
                     }
@@ -106,9 +109,7 @@ class Server {
     };
 
     protected Server() {
-        if (AlpLog.showLog) {
-            AlpLog.e("server created " + Thread.currentThread().getName());
-        }
+        Timber.e("server created " + Thread.currentThread().getName());
     }
 
     /**
@@ -124,9 +125,9 @@ class Server {
                         try {
                             Thread.sleep(6 * 60 * 1000);
                         } catch (InterruptedException e) {
-                            AlpLog.e(e);
+                            Timber.e(e);
                         }
-                        AlpLog.i("Server 开始轮询心跳链路");
+                        Timber.i("Server 开始轮询心跳链路");
                         try {
 
                             // 心跳检测
@@ -134,12 +135,10 @@ class Server {
                             for (int i = 0; i < cloneClientList.size(); i++) {
                                 ClientHandler temp = cloneClientList.get(i);
                                 if (temp.isFinished || ((temp.lastBeating > 0) && ((SystemClock.elapsedRealtime() - temp.lastBeating) > 6 * 60 * 1000))) {
-                                    if (AlpLog.showLog) {
-                                        if (temp.isFinished) {
-                                            AlpLog.i("Server 链路[" + temp.getLogName() + "] isFinished");
-                                        } else {
-                                            AlpLog.i("Server 链路[" + temp.getLogName() + "] 超时");
-                                        }
+                                    if (temp.isFinished) {
+                                        Timber.i("Server 链路[" + temp.getLogName() + "] isFinished");
+                                    } else {
+                                        Timber.i("Server 链路[" + temp.getLogName() + "] 超时");
                                     }
                                     Log.d("ALP", "链路[" + temp.getLogName() + "] " + (temp.isFinished ? "finished" : "超时"));
                                     temp.callStop();
@@ -173,7 +172,7 @@ class Server {
                             checkConnectionRegister();
 
                         } catch (Exception e) {
-                            AlpLog.e(e);
+                            Timber.e(e);
                         }
                     }
                 }
@@ -207,32 +206,26 @@ class Server {
                 receiveClient(client);
             }
         } catch (Exception e) {
-            AlpLog.e(e);
+            Timber.e(e);
         } finally {
             if (serverSocket != null) {
                 try {
                     serverSocket.close();
                 } catch (IOException e) {
-                    AlpLog.e(e);
+                    Timber.e(e);
                 }
             }
             try {
-                if (AlpLog.showLog) {
-                    AlpLog.e("server close " + Thread.currentThread().getName());
-                }
+                Timber.e("server close " + Thread.currentThread().getName());
                 if (!checkFinish()) {
                     Thread.sleep(10 * 1000);
-                    if (AlpLog.showLog) {
-                        AlpLog.e("server start retry " + Thread.currentThread().getName());
-                    }
+                    Timber.e("server start retry " + Thread.currentThread().getName());
                     init(port, receiver);
                 } else {
-                    if (AlpLog.showLog) {
-                        AlpLog.e("server finally finished " + Thread.currentThread().getName());
-                    }
+                    Timber.e("server finally finished " + Thread.currentThread().getName());
                 }
             } catch (InterruptedException e) {
-                AlpLog.e(e);
+                Timber.e(e);
             }
 
         }
@@ -270,9 +263,7 @@ class Server {
      * @param client Socket
      */
     private void receiveClient(Socket client) {
-        if (AlpLog.showLog) {
-            AlpLog.i("Server receiveClient " + String.format("开始监听客户端: %s", client.getRemoteSocketAddress()));
-        }
+        Timber.i("Server receiveClient " + String.format("开始监听客户端: %s", client.getRemoteSocketAddress()));
         Log.d("ALP", String.format("开始监听客户端: %s", client.getRemoteSocketAddress()));
         ClientHandler clientHandler = new ClientHandler(client);
         synchronized (Server.this) {
@@ -320,7 +311,7 @@ class Server {
                     case Configure.KEY_ACK:
                         // 回执消息
                         synchronized (ackMap) {
-                            AlpLog.i("Receive ack for message [" + msgValue + "]");
+                            Timber.i("Receive ack for message [" + msgValue + "]");
                             if (ackMap.containsKey(msgValue)) {
                                 ackMap.get(msgValue).second.callback(msgValue, AckStatus.Success);
                             }
@@ -386,7 +377,7 @@ class Server {
                 temp.pushMsg(finalMsg);
             }
         } catch (Exception e) {
-            AlpLog.e(e);
+            Timber.e(e);
         }
     }
 
@@ -450,9 +441,7 @@ class Server {
      * 结束掉当前的服务器
      */
     public void finish() {
-        if (AlpLog.showLog) {
-            AlpLog.i("Server call finish " + Thread.currentThread().getName());
-        }
+        Timber.i("Server call finish " + Thread.currentThread().getName());
         clientList.clear();
         keyClient.clear();
         synchronized (this) {
@@ -533,20 +522,18 @@ class Server {
                     byte[] header = new byte[4];
                     String clientMsg = Util.socketReader(in, header);
                     if (TextUtils.isEmpty(clientMsg)) {
-                        AlpLog.i("Server " + getLogName() + " 读取失败");
+                        Timber.i("Server " + getLogName() + " 读取失败");
                         callStop();
                         break;
                     }
-                    if (AlpLog.showLog) {
-                        AlpLog.i("Server receive msg [" + clientMsg + "] from [" + this.getLogName() + "]");
-                    }
+                    Timber.i("Server receive msg [" + clientMsg + "] from [" + this.getLogName() + "]");
                     int indexMsgType = clientMsg.indexOf(Configure.SYMBOL_SPLIT);
                     String msgType = clientMsg.substring(0, indexMsgType);
                     String value = clientMsg.substring(indexMsgType + Configure.SYMBOL_SPLIT.length());
                     processMsg(this, msgType, value);
                 }
             } catch (Throwable e) {
-                AlpLog.e(e);
+                Timber.e(e);
                 callStop();
                 Log.d("ALP", "客户端[" + getLogName() + "]连接异常\n" + e.getMessage());
             }
@@ -580,10 +567,10 @@ class Server {
                     }
                 }
             } catch (SocketException e) {
-                AlpLog.e(e);
+                Timber.e(e);
                 callStop();
             } catch (Exception e) {
-                AlpLog.e(e);
+                Timber.e(e);
             }
         }
 
@@ -604,7 +591,7 @@ class Server {
                     client.close();
                 }
             } catch (Exception e) {
-                AlpLog.e(e);
+                Timber.e(e);
             }
             in = null;
             out = null;

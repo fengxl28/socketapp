@@ -1,10 +1,9 @@
 package com.mwee.android.alp;
 
 /**
- * @ClassName: Ack
- * @Description:
- * @author: SugarT
- * @date: 2018/6/19 上午11:50
+ * @Description: 回执实体
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
 public abstract class Ack {
 
@@ -20,7 +19,7 @@ public abstract class Ack {
     /**
      * 回调
      *
-     * @param uniq 消息id
+     * @param uniq   消息id
      * @param status 回执状态
      */
     public abstract void callback(String uniq, @AckStatus int status);

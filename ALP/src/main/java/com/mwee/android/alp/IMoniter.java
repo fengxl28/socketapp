@@ -1,9 +1,9 @@
 package com.mwee.android.alp;
-
 /**
- * Created by virgil on 2016/12/12.
+ * @Description:
+ * @author: Xiaolong
+ * @Date: 2018/9/19
  */
-
 public interface IMoniter {
     void connected();
 

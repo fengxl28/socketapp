@@ -44,6 +44,7 @@ class Server {
      */
     private IMsgReceiver receiver;
     private Thread handlerThread = null;
+    private int heartbeatPeriod = 6 * 60;
 
     protected Server() {
         Timber.e("server created " + Thread.currentThread().getName());
@@ -60,7 +61,7 @@ class Server {
                     super.run();
                     while (!checkFinish()) {
                         try {
-                            Thread.sleep(6 * 60 * 1000);
+                            Thread.sleep(heartbeatPeriod * 1000);
                         } catch (InterruptedException e) {
                             Timber.e(e);
                         }
@@ -71,7 +72,7 @@ class Server {
                             List<ClientHandler> cloneClientList = new ArrayList<>(clientList);
                             for (int i = 0; i < cloneClientList.size(); i++) {
                                 ClientHandler temp = cloneClientList.get(i);
-                                if (temp.isFinished || ((temp.lastBeating > 0) && ((SystemClock.elapsedRealtime() - temp.lastBeating) > 6 * 60 * 1000))) {
+                                if (temp.isFinished || ((temp.lastBeating > 0) && ((SystemClock.elapsedRealtime() - temp.lastBeating) > heartbeatPeriod * 1000))) {
                                     if (temp.isFinished) {
                                         Timber.i("Server 链路[" + temp.getLogName() + "] isFinished");
                                     } else {
@@ -365,19 +366,6 @@ class Server {
             Log.d("ALP", client + "未注册，即将发送需要注册的消息");
             client.pushMsg(buildUnregistered());
         }
-    }
-
-    /**
-     * 仅测试使用
-     */
-    public void removeFirst() {
-        if (keyClient == null || keyClient.size() == 0) {
-            return;
-        }
-        keyClient.removeAt(0);
-        Log.d("ALP", "Remove First\n" +
-                "Client List: " + clientList + "\n" +
-                "Key Client: " + new Gson().toJson(keyClient.keySet()));
     }
 
     /**

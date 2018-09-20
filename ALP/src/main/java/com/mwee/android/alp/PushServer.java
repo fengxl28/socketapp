@@ -164,13 +164,4 @@ public class PushServer {
         }
     }
 
-    /**
-     * 仅测试使用
-     */
-    public void removeFistConn() {
-        if (server == null) {
-            return;
-        }
-        server.removeFirst();
-    }
 }

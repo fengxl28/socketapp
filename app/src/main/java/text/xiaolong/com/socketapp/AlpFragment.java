@@ -3,18 +3,20 @@ package text.xiaolong.com.socketapp;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ListView;
-import android.widget.Toast;
 
 import com.mwee.android.alp.IMsgReceiver;
 import com.mwee.android.alp.PushClient;
 import com.mwee.android.alp.PushServer;
+
+import java.util.ArrayList;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -32,10 +34,11 @@ public class AlpFragment extends Fragment {
     @BindView(R.id.send)
     Button send;
     Unbinder unbinder;
-    @BindView(R.id.list)
-    ListView list;
+    @BindView(R.id.recyclerView)
+    RecyclerView recyclerView;
 
     private int type = 0; //1:client  2:server
+    private AlpAdapter alpAdapter;
 
     public static AlpFragment newInstance(int type) {
         AlpFragment fragment = new AlpFragment();
@@ -62,6 +65,9 @@ public class AlpFragment extends Fragment {
             }
         });
 
+        alpAdapter = new AlpAdapter(new ArrayList<>());
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        recyclerView.setAdapter(alpAdapter);
         initAlp();
     }
 
@@ -79,6 +85,7 @@ public class AlpFragment extends Fragment {
         if (TextUtils.isEmpty(s)) {
             return;
         }
+        alpAdapter.addMsg("发送： " + s);
         if (type == 1) {
             PushClient.getInstance().pushMsg(s);
         } else if (type == 2) {
@@ -92,7 +99,7 @@ public class AlpFragment extends Fragment {
         PushClient.getInstance().startClient("10.188.191.246", 45764, new IMsgReceiver() {
             @Override
             public void receive(String uniq, String param) {
-                Toast.makeText(getContext(),param,Toast.LENGTH_SHORT).show();
+                receiveMsg(param);
             }
 
             @Override
@@ -111,7 +118,7 @@ public class AlpFragment extends Fragment {
         PushServer.getInstance().startServer(45764, new IMsgReceiver() {
             @Override
             public void receive(String uniq, String param) {
-                Toast.makeText(getContext(),param,Toast.LENGTH_SHORT).show();
+                receiveMsg(param);
             }
 
             @Override
@@ -122,6 +129,15 @@ public class AlpFragment extends Fragment {
             @Override
             public void disconnected() {
 
+            }
+        });
+    }
+
+    private void receiveMsg(String msg){
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                alpAdapter.addMsg("接收： " + msg);
             }
         });
     }

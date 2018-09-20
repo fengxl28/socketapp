@@ -72,6 +72,7 @@ class Util {
 
     public static String socketReader(InputStream in, byte[] header) throws IOException {
         String originStr = getStringByByte(header);
+        //当断开链接的时候也会调用
         int tempHead = in.read(header, 0, 4);
         if (tempHead < 0) {
             Timber.i("tempHead=" + tempHead);
